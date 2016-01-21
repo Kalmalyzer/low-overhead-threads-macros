@@ -1,0 +1,86 @@
+
+
+
+SETSIGNAL	#CURRENT_THREAD,#TARGET_THREAD,#SIGNAL
+
+	DISABLE_INTERRUPTS
+
+	bset	#SIGNAL&7,signals+(SIGNAL/8)
+	bne.s	.alreadySet
+
+	IFD	DEBUG
+	btst	#TARGET_THREAD&7,threadsInitialized+(TARGET_THREAD/8)
+	bne.s	.threadInitialized
+	LOG_ERROR_STR "Attempted to send a signal to wake up a thread which is not initialized"
+.threadInitialized
+	ENDC
+	
+	bset	#TARGET_THREAD&7,threadsRunnable+(TARGET_THREAD/8)
+	bne.s	.noWaitingThread
+
+	IFLT	TARGET_THREAD-CURRENT_THREAD
+	
+;	move.b	#TARGET_THREAD,desiredThread
+
+	move.l	#.return_address,-(sp)
+	move.l	sp,threadsUsps+CURRENT_THREAD*4
+
+	move.l	threadsUsps+TARGET_THREAD*4,sp
+	rts
+
+.return_address
+
+	ENDC
+
+.noWaitingThread
+
+.alreadySet
+
+	ENABLE_INTERRUPTS
+
+	ENDM
+
+
+
+WAITSIGNAL	#CURRENT_THREAD,#SIGNAL
+
+	DISABLE_INTERRUPTS
+
+	bclr	#SIGNAL&7,signals+(SIGNAL/8)
+	bne.s	.alreadySet
+
+	bclr	#CURRENT_THREAD&7,threadsRunnable+(CURRENT_THREAD/8)
+
+	lea	threadsRunnableToThreadId,a0
+	move.w	threadsRunnable_word,d0
+	move.b	(a0,d0.w),d0
+	lsl.w	#2,d0
+	lea	threadUsps,a0
+
+	move.l	#.returnAddress,-(sp)
+	move.l	sp,threadUsps+CURRENT_THREAD*4
+
+	move.l	(a0,d0.w),sp
+	rts
+	
+.returnAddress
+	bclr	#SIGNAL&7,signals+(SIGNAL/8)	; TODO: is this a good time to clear signal flag?
+	
+.alreadySet
+
+	ENABLE_INTERRUPTS
+
+	ENDM
+
+	
+preempt thread in interrupt:
+
+	push "restore regs" routine addr to -(usp)
+	push sr to -(usp)
+	push regs to -(usp)
+
+	switch pc/usp/sr to other routine
+	
+restore regs routine:
+	pop d0-a6
+	rtr
