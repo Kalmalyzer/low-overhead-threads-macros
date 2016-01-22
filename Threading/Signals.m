@@ -12,18 +12,25 @@ M_setSignal	MACRO	currentThreadId,targetThreadId,signalId
 
 ;		DISABLE_INTERRUPTS
 
-		bset	#\3&7,Signals_flags+(\3/8)
+		bset	#\3&7,Signals_signalledFlags+(\3/8)
 		bne.s	.alreadySet\@
+
+		bclr	#\3&7,Signals_waitedOnFlags+(\3/8)
+		beq.s	.noWaitingThread\@
 
 		IFD	DEBUG
 		btst	#\2&7,Threads_initializedFlags+(\2/8)
 		bne.s	.threadInitialized\@
 		LOG_ERROR_STR "Attempted to send a signal to wake up a thread which is not initialized"
 .threadInitialized\@
+
+		btst	#\2&7,Threads_runnableFlags+(\2/8)
+		beq.s	.threadWaiting\@
+		LOG_ERROR_STR "Attempted to send a signal to a thread that is waiting on a flag, but in runnable state at the same time"
+.threadRunning\@
 		ENDC
 		
 		bset	#\2&7,Threads_runnableFlags+(\2/8)
-		bne.s	.noWaitingThread\@
 
 		IFLT	\2-\1
 		
@@ -53,9 +60,11 @@ M_waitAndClearSignal	MACRO	currentThreadId,signalId
 
 ;		DISABLE_INTERRUPTS
 
-		bclr	#\2&7,Signals_flags+(\2/8)
+		bclr	#\2&7,Signals_signalledFlags+(\2/8)
 		bne.s	.alreadySet\@
 
+		bset	#\2&7,Signals_waitedOnFlags+(\2/8)
+		
 		bclr	#\1&7,Threads_runnableFlags+(\1/8)
 
 		lea	runnableFlagsToChosenThread,a0
@@ -72,7 +81,7 @@ M_waitAndClearSignal	MACRO	currentThreadId,signalId
 		rts
 	
 .returnAddress\@
-		bclr	#\2&7,Signals_flags+(\2/8)
+		bclr	#\2&7,Signals_signalledFlags+(\2/8)
 	
 .alreadySet\@
 
