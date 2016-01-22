@@ -40,7 +40,9 @@ producerThreadFunc
 		
 		LOG_INFO_PTR #ProducerMessage
 
+		move.l	d7,-(sp)
 		M_setSignal ProducerThreadId,ConsumerThreadId,ItemProducedSignalId
+		move.l	(sp)+,d7
 
 		addq.l	#1,d7
 		cmp.l	#10,d7
