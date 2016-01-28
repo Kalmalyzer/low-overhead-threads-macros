@@ -2,6 +2,7 @@
 		IFND	SIGNALS_M
 SIGNALS_M	SET	1
 
+		INCLUDE	"Threading/Interrupts.i"
 		INCLUDE	"Threading/Signals.i"
 		INCLUDE	"Threading/Threads.i"
 		INCLUDE	"Threading/Scheduler.i"
@@ -10,7 +11,7 @@ SIGNALS_M	SET	1
 
 M_setSignal	MACRO	currentThreadId,targetThreadId,signalId
 
-;		DISABLE_INTERRUPTS
+		DISABLE_INTERRUPTS
 
 		bset	#\3&7,Signals_signalledFlags+(\3/8)
 		bne.s	.alreadySet\@
@@ -34,7 +35,7 @@ M_setSignal	MACRO	currentThreadId,targetThreadId,signalId
 
 		IFLT	\2-\1
 		
-;		move.b	#\2,currentThread
+		move.b	#\2,currentThread
 
 		move.l	#.returnAddress\@,-(sp)
 		move.l	sp,Threads_usps+\1*4
@@ -50,7 +51,38 @@ M_setSignal	MACRO	currentThreadId,targetThreadId,signalId
 
 .alreadySet\@
 
-;		ENABLE_INTERRUPTS
+		ENABLE_INTERRUPTS
+
+		ENDM
+
+;------------------------------------------------------------------------
+
+M_setSignalFromInterrupt	MACRO	targetThreadId,signalId
+
+		bset	#\2&7,Signals_signalledFlags+(\2/8)
+		bne.s	.alreadySet\@
+
+		bclr	#\2&7,Signals_waitedOnFlags+(\2/8)
+		beq.s	.noWaitingThread\@
+
+		bset	#\1&7,Threads_runnableFlags+(\1/8)
+
+		cmp.b	#\1,currentThread
+		bls.s	.higherPriorityThreadAlreadyRunning\@
+
+		cmp.b	#\1,desiredThread
+		bls.s	.higherPriorityThreadAlreadyRequested\@
+
+		move.b	#\1,desiredThread
+		REQUEST_SCHEDULER_INTERRUPT
+
+.higherPriorityThreadAlreadyRequested\@
+
+.higherPriorityThreadAlreadyRunning\@
+
+.noWaitingThread\@
+
+.alreadySet\@
 
 		ENDM
 
@@ -58,7 +90,7 @@ M_setSignal	MACRO	currentThreadId,targetThreadId,signalId
 
 M_waitAndClearSignal	MACRO	currentThreadId,signalId
 
-;		DISABLE_INTERRUPTS
+		DISABLE_INTERRUPTS
 
 		bclr	#\2&7,Signals_signalledFlags+(\2/8)
 		bne.s	.alreadySet\@
@@ -70,7 +102,7 @@ M_waitAndClearSignal	MACRO	currentThreadId,signalId
 		lea	runnableFlagsToChosenThread,a0
 		move.w	Threads_runnableFlags_word,d0
 		move.b	(a0,d0.w),d0
-;		move.b	d0,currentThread
+		move.b	d0,currentThread
 		lsl.w	#2,d0
 		lea	Threads_usps,a0
 
@@ -85,7 +117,7 @@ M_waitAndClearSignal	MACRO	currentThreadId,signalId
 	
 .alreadySet\@
 
-;		ENABLE_INTERRUPTS
+		ENABLE_INTERRUPTS
 
 		ENDM
 

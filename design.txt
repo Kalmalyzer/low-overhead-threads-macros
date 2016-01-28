@@ -72,14 +72,48 @@ WAITSIGNAL	#CURRENT_THREAD,#SIGNAL
 
 	ENDM
 
+
+
+setSignal callable from interrupt:	#TARGET_THREAD,#SIGNAL
+
+	set signal flag
+	bne.s	.alreadySet
+
+	clear thread-waiting-on-signal-flag
+	beq.s	.noWaitingThread
+
+	set thread-runnable-flag
 	
-preempt thread in interrupt:
+	cmp.b #TARGET_THREAD,currentThread
+	bls.s	.higherPriorityThreadAlreadyRunning
 
-	push "restore regs" routine addr to -(usp)
-	push sr to -(usp)
+	cmp.b #TARGET_THREAD,desiredThread
+	bls.s	.higherPriorityThreadAlreadyRequested
+
+	move.b	#TARGET_THREAD,desiredThread
+	request_scheduler_interrupt
+
+.higherPriorityThreadAlreadyRunning
+.noWaitingThread	
+.alreadySet
+	
+
+scheduler_interrupt:
+	push non_interrupt_pc to -(usp)
+	push non_interrupt_ccr to -(usp)
 	push regs to -(usp)
+	push "restore regs" routine addr to -(usp)
 
-	switch pc/usp/sr to other routine
+	store usp into Threads_usps[currentThread]
+
+	move.b	desiredThread,currentThread
+
+	move.l	Threads_usps[desiredThread],usp
+	move.l	#.returnAddress,non_interrupt_pc
+	rte
+.returnAddress
+	rts
+	
 	
 restore regs routine:
 	pop d0-a6

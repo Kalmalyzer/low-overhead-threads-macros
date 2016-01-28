@@ -44,7 +44,7 @@ M_terminateCurrentThread	MACRO	currentThreadId
 		lea	runnableFlagsToChosenThread,a0
 		move.w	Threads_runnableFlags_word,d0
 		move.b	(a0,d0.w),d0
-;		move.b	d0,currentThread
+		move.b	d0,currentThread
 		lsl.w	#2,d0
 		lea	Threads_usps,a0
 

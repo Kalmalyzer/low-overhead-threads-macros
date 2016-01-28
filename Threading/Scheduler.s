@@ -1,8 +1,12 @@
 
+		include	"Threading/Interrupts.i"
 		include	"Threading/Log.i"
 		include	"Threading/Scheduler.i"
 		include	"Threading/Threads.i"
 
+		include <hardware/custom.i>
+		include <hardware/intbits.i>
+		
 		section	code,code
 
 ;------------------------------------------------------------------------
@@ -21,18 +25,59 @@ runScheduler
 		bset	#IdleThreadId&7,Threads_initializedFlags+(IdleThreadId/8)
 		bset	#IdleThreadId&7,Threads_runnableFlags+(IdleThreadId/8)
 
-.loop
-;		DISABLE_INTERRUPTS
+		bsr	installSchedulerInterruptHandler
+
+		DISABLE_INTERRUPTS
 		bsr	switchToNonIdleThread
+		ENABLE_INTERRUPTS
+.loop
+		DISABLE_INTERRUPTS
+;		bsr	switchToNonIdleThread
 		bsr	anyThreadsAliveExceptIdleThread
-;		ENABLE_INTERRUPTS
+		ENABLE_INTERRUPTS
 		tst.b	d0
 		bne.s	.loop
 		
 .done
 		LOG_INFO_STR "No live threads - scheduler exiting"
 		
+		bsr	removeSchedulerInterruptHandler
 		rts
+
+;------------------------------------------------------------------------
+; Install scheduler interrupt handler as a level-1 interrupt (SOFTINT)
+
+installSchedulerInterruptHandler
+		DISABLE_INTERRUPTS
+
+		bsr	getVBR
+		move.l	d0,a0
+		move.l	$64(a0),oldLevel1InterruptHandler
+		
+		move.l	#schedulerInterruptHandler,$64(a0)
+		
+		ACKNOWLEDGE_SCHEDULER_INTERRUPT
+		ENABLE_SCHEDULER_INTERRUPT
+
+		ENABLE_INTERRUPTS
+		rts
+
+;------------------------------------------------------------------------
+; Remove scheduler interrupt handler
+
+removeSchedulerInterruptHandler
+		DISABLE_INTERRUPTS
+
+		ACKNOWLEDGE_SCHEDULER_INTERRUPT
+		DISABLE_SCHEDULER_INTERRUPT
+
+		bsr	getVBR
+		move.l	d0,a0
+		move.l	oldLevel1InterruptHandler,$64(a0)
+		
+		ENABLE_INTERRUPTS
+		rts
+
 
 ;------------------------------------------------------------------------
 ; Are any threads except the idle thread still alive?
@@ -85,18 +130,90 @@ switchToNonIdleThread
 ; Disable scheduler interrupt, with reentrancy count
 
 disableSchedulerInterrupt
+		subq.b	#1,schedulerInterruptEnableCount
+		bmi.s	.done
+		DISABLE_SCHEDULER_INTERRUPT
+.done
 		rts
 		
 ;------------------------------------------------------------------------
 ; Enable scheduler interrupt, with reentrancy count
 
 enableSchedulerInterrupt
+		addq.b	#1,schedulerInterruptEnableCount
+		ble.s	.done
+		ENABLE_SCHEDULER_INTERRUPT
+.done
 		rts
+		
+;------------------------------------------------------------------------
+; Scheduler interrupt handler
+;
+; The interrupt handler will perform a context switch, if necessary.
+; If no context switch is needed, it is a no-op.
+
+schedulerInterruptHandler
+		btst	#(INTB_SOFTINT&7),intreqr+(1-(INTB_SOFTINT/8))+$dff000
+		beq.s	.nSoftInt
+
+		tst.b	desiredThread
+		bmi.s	.noThreadSwitchRequired
+
+		move.l	a6,temp
+		move	usp,a6
+		
+		move.l	2(sp),-(a6)
+		move.w	(sp),-(a6)
+		move.l	temp,-(a6)
+		movem.l	d0-a5,-(a6)
+		move.l	#.restoreRegisters,-(a6)
+
+		move.w	currentThread_word,d0
+		lea	Threads_usps,a0
+		lsl.w	#2,d0
+		move.l	a6,(a0,d0.w)
+		move.w	desiredThread_word,d0
+		lsl.w	#2,d0
+		move.l	(a0,d0.w),a6
+		move	a6,usp
+		move.l	#.return,2(sp)
+
+		st	desiredThread
+
+.noThreadSwitchRequired
+	
+		ACKNOWLEDGE_SCHEDULER_INTERRUPT
+		rte
+.nSoftInt
+		move.l	oldLevel1InterruptHandler,-(sp)
+		rts
+
+.return
+		rts
+
+.restoreRegisters
+		movem.l	(sp)+,d0-a6
+		rtr
 		
 ;------------------------------------------------------------------------
 
 
 		section	data,data
+
+temp		dc.l	0
+
+desiredThread_word
+		dc.b	0
+desiredThread	dc.b	-1
+currentThread_word
+		dc.b	0
+currentThread	dc.b	-1
+
+schedulerInterruptEnableCount dc.b	1
+
+		cnop	0,4
+
+oldLevel1InterruptHandler dc.l	0
 
 ;------------------------------------------------------------------------
 ; Lookup table, answering: for a value in the range 0-255,
