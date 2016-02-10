@@ -6,6 +6,8 @@
 
 		include <hardware/custom.i>
 		include <hardware/intbits.i>
+
+		include <lvo/exec_lib.i>
 		
 		section	code,code
 
@@ -25,6 +27,8 @@ runScheduler
 		bset	#IdleThreadId&7,Threads_initializedFlags+(IdleThreadId/8)
 		bset	#IdleThreadId&7,Threads_runnableFlags+(IdleThreadId/8)
 
+		bsr	disableOSPreemptiveTaskSwitching
+		
 		bsr	installSchedulerInterruptHandler
 
 		DISABLE_INTERRUPTS
@@ -42,6 +46,23 @@ runScheduler
 		LOG_INFO_STR "No live threads - scheduler exiting"
 		
 		bsr	removeSchedulerInterruptHandler
+
+		bsr	enableOSPreemptiveTaskSwitching
+
+		rts
+
+;------------------------------------------------------------------------
+
+disableOSPreemptiveTaskSwitching
+		move.l	$4.w,a6
+		jsr	_LVOForbid(a6)
+		rts
+
+;------------------------------------------------------------------------
+
+enableOSPreemptiveTaskSwitching
+		move.l	$4.w,a6
+		jsr	_LVOPermit(a6)
 		rts
 
 ;------------------------------------------------------------------------
@@ -114,6 +135,7 @@ switchToNonIdleThread
 		move.l	#.returnAddress,-(sp)
 		move.l	sp,IdleThreadId*4(a0)
 
+		move.b	d0,currentThread
 		lsl.w	#2,d0
 		move.l	(a0,d0.w),sp
 		rts
@@ -179,6 +201,7 @@ schedulerInterruptHandler
 		move.l	#.return,2(sp)
 
 		st	desiredThread
+		DISABLE_SCHEDULER_INTERRUPT
 
 .noThreadSwitchRequired
 	
@@ -192,6 +215,7 @@ schedulerInterruptHandler
 		rts
 
 .restoreRegisters
+		ENABLE_SCHEDULER_INTERRUPT
 		movem.l	(sp)+,d0-a6
 		rtr
 		
