@@ -3,7 +3,7 @@ THREADING_OBJECTS = out/Threads.o out/Scheduler.o out/Signals.o out/Log.o out/VB
 
 all: tests
 
-tests: out/HelloWorld out/ProducerConsumer out/VBlankDrivenProducerConsumer
+tests: out/HelloWorld out/ProducerConsumer out/VBlankDrivenProducerConsumer out/InterruptSignalling
 
 out/HelloWorld: out out/HelloWorld.o $(THREADING_OBJECTS)
 	vlink out/HelloWorld.o $(THREADING_OBJECTS) -o $@
@@ -14,6 +14,9 @@ out/ProducerConsumer: out out/ProducerConsumer.o $(THREADING_OBJECTS)
 out/VBlankDrivenProducerConsumer: out out/VBlankDrivenProducerConsumer.o $(THREADING_OBJECTS)
 	vlink out/VBlankDrivenProducerConsumer.o $(THREADING_OBJECTS) -o $@
 	
+out/InterruptSignalling: out out/InterruptSignalling.o $(THREADING_OBJECTS)
+	vlink out/InterruptSignalling.o $(THREADING_OBJECTS) -o $@
+
 out:
 #	mkdir out
 	md out
@@ -26,6 +29,9 @@ out/ProducerConsumer.o: Tests/ProducerConsumer.s
 
 out/VBlankDrivenProducerConsumer.o: Tests/VBlankDrivenProducerConsumer.s
 	vc -c Tests/VBlankDrivenProducerConsumer.s -o $@
+
+out/InterruptSignalling.o: Tests/InterruptSignalling.s
+	vc -c Tests/InterruptSignalling.s -o $@
 
 out/Threads.o: Threading/Threads.s
 	vc -c Threading/Threads.s -o $@
