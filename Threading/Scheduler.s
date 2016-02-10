@@ -181,12 +181,12 @@ schedulerInterruptHandler
 		tst.b	desiredThread
 		bmi.s	.noThreadSwitchRequired
 
-		move.l	a6,temp
+		move.l	a6,-(sp)
 		move	usp,a6
 		
-		move.l	2(sp),-(a6)
-		move.w	(sp),-(a6)
-		move.l	temp,-(a6)
+		move.l	4+2(sp),-(a6)
+		move.w	4(sp),-(a6)
+		move.l	(sp)+,-(a6)
 		movem.l	d0-a5,-(a6)
 		move.l	#.restoreRegisters,-(a6)
 
@@ -197,8 +197,9 @@ schedulerInterruptHandler
 		move.w	desiredThread_word,d0
 		lsl.w	#2,d0
 		move.l	(a0,d0.w),a6
+
+		move.l	(a6)+,2(sp)
 		move	a6,usp
-		move.l	#.return,2(sp)
 
 		st	desiredThread
 		DISABLE_SCHEDULER_INTERRUPT
@@ -211,9 +212,6 @@ schedulerInterruptHandler
 		move.l	oldLevel1InterruptHandler,-(sp)
 		rts
 
-.return
-		rts
-
 .restoreRegisters
 		ENABLE_SCHEDULER_INTERRUPT
 		movem.l	(sp)+,d0-a6
@@ -223,8 +221,6 @@ schedulerInterruptHandler
 
 
 		section	data,data
-
-temp		dc.l	0
 
 desiredThread_word
 		dc.b	0
