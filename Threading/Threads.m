@@ -6,6 +6,13 @@ THREADS_M	SET	1
 		INCLUDE	"Threading/Threads.i"
 
 ;------------------------------------------------------------------------
+; Initialize a thread
+;
+; This function sets up initial register content and makes a thread
+;   runnable.
+; You need to provide both a starting execution point and a stack area
+;   for the thread.
+; The thread must terminate itself by calling M_terminateCurrentThread.
 
 M_setupThread	MACRO	threadId,entryPoint,userStackEnd
 
@@ -34,6 +41,10 @@ M_setupThread	MACRO	threadId,entryPoint,userStackEnd
 		ENDM
 
 ;------------------------------------------------------------------------
+; Terminate current thread.
+;
+; There is no way to terminate another thread -- you must make each
+;   thread terminate itself.
 
 M_terminateCurrentThread	MACRO	currentThreadId
 ;		DISABLE_INTERRUPTS

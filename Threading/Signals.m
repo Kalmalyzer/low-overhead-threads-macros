@@ -8,6 +8,9 @@ SIGNALS_M	SET	1
 		INCLUDE	"Threading/Scheduler.i"
 
 ;------------------------------------------------------------------------
+; Set signal
+; If a higher-priority thread is already waiting on the signal,
+;   it will also immediately switch to that thread
 
 M_setSignal	MACRO	currentThreadId,targetThreadId,signalId
 
@@ -56,6 +59,9 @@ M_setSignal	MACRO	currentThreadId,targetThreadId,signalId
 		ENDM
 
 ;------------------------------------------------------------------------
+; Set signal (callable from within an interrupt context)
+; If a higher-priority thread is already waiting on the signal,
+;   it will switch to that thread once interrupt processing has completed
 
 M_setSignalFromInterrupt	MACRO	targetThreadId,signalId
 
@@ -87,6 +93,12 @@ M_setSignalFromInterrupt	MACRO	targetThreadId,signalId
 		ENDM
 
 ;------------------------------------------------------------------------
+; Wait for signal to become set, and clear it
+; If the signal is not yet set, the current thread will change to
+;   waiting state, and the highest-priority runnable thread will begin
+;   executing
+;
+; NOTE: All registers and condition codes will be modified by this call.
 
 M_waitAndClearSignal	MACRO	currentThreadId,signalId
 
